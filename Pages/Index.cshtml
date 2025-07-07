@@ -1,0 +1,288 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "PCAOB Data Extraction Utility";
+}
+
+<div class="container">
+    <h1>PCAOB Data Extraction Utility</h1>
+    <p>Input a JSON, XML, or CSV file URL or upload a file. A database will be created and populated automatically with the data.</p>
+    
+    <!-- File Upload Section -->
+    <div class="section">
+        <h2>Upload File</h2>
+        <form id="fileUploadForm" enctype="multipart/form-data">
+            <input type="file" id="fileInput" name="file" accept=".csv,.json,.xml" class="form-control" />
+            <button type="button" onclick="uploadFile()" class="btn btn-primary">Upload & Process</button>
+        </form>
+    </div>
+    
+    <!-- URL Input Section -->
+    <div class="section">
+        <h2>Process from URL</h2>
+        <form id="urlForm">
+            <input type="url" id="urlInput" name="url" placeholder="Enter URL to JSON, XML, or CSV file" class="form-control" />
+            <button type="button" onclick="fetchFromUrl()" class="btn btn-primary">Fetch & Process</button>
+        </form>
+    </div>
+    
+    <!-- Loading indicator -->
+    <div class="loading" id="loading" style="display: none;">
+        <div class="spinner-border" role="status">
+            <span class="visually-hidden">Loading...</span>
+        </div>
+        <p>Processing your data...</p>
+    </div>
+    
+    <!-- Results section -->
+    <div id="results"></div>
+</div>
+
+<style>
+    .container {
+        max-width: 1000px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+    
+    .section {
+        margin-bottom: 30px;
+        padding: 20px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        background-color: #f8f9fa;
+    }
+    
+    .section h2 {
+        color: #333;
+        margin-bottom: 15px;
+    }
+    
+    .form-control {
+        width: 100%;
+        padding: 10px;
+        margin: 10px 0;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 16px;
+    }
+    
+    .btn {
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-top: 10px;
+    }
+    
+    .btn-primary {
+        background-color: #007bff;
+        color: white;
+    }
+    
+    .btn-primary:hover {
+        background-color: #0056b3;
+    }
+    
+    .loading {
+        text-align: center;
+        padding: 20px;
+        color: #666;
+    }
+    
+    .results {
+        margin-top: 20px;
+        padding: 20px;
+        background-color: #ffffff;
+        border-radius: 8px;
+        border: 1px solid #ddd;
+    }
+    
+    .alert {
+        padding: 15px;
+        margin-bottom: 20px;
+        border: 1px solid transparent;
+        border-radius: 4px;
+    }
+    
+    .alert-danger {
+        color: #721c24;
+        background-color: #f8d7da;
+        border-color: #f5c6cb;
+    }
+    
+    .alert-success {
+        color: #155724;
+        background-color: #d4edda;
+        border-color: #c3e6cb;
+    }
+    
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    
+    .data-table th, .data-table td {
+        border: 1px solid #ddd;
+        padding: 8px;
+        text-align: left;
+    }
+    
+    .data-table th {
+        background-color: #f2f2f2;
+        font-weight: bold;
+    }
+    
+    .data-preview {
+        max-height: 400px;
+        overflow-y: auto;
+        border: 1px solid #ddd;
+        padding: 15px;
+        background-color: #f9f9f9;
+        border-radius: 4px;
+    }
+</style>
+
+<script>
+    async function uploadFile() {
+        const fileInput = document.getElementById('fileInput');
+        const file = fileInput.files[0];
+        
+        if (!file) {
+            showError('Please select a file first.');
+            return;
+        }
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        try {
+            showLoading(true);
+            
+            const response = await fetch('/api/data/upload', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showSuccess('File processed successfully!');
+                displayData(result.data);
+            } else {
+                showError(result.error || 'Failed to process file');
+            }
+            
+        } catch (error) {
+            showError('Error uploading file: ' + error.message);
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    async function fetchFromUrl() {
+        const urlInput = document.getElementById('urlInput');
+        const url = urlInput.value.trim();
+        
+        if (!url) {
+            showError('Please enter a URL first.');
+            return;
+        }
+        
+        try {
+            showLoading(true);
+            
+            const response = await fetch('/api/data/fetch-url', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ url: url })
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+                showSuccess('URL data processed successfully!');
+                displayData(result.data);
+            } else {
+                showError(result.error || 'Failed to process URL');
+            }
+            
+        } catch (error) {
+            showError('Error fetching URL: ' + error.message);
+        } finally {
+            showLoading(false);
+        }
+    }
+    
+    function showLoading(show) {
+        const loading = document.getElementById('loading');
+        loading.style.display = show ? 'block' : 'none';
+    }
+    
+    function showError(message) {
+        const results = document.getElementById('results');
+        results.innerHTML = `<div class="alert alert-danger">${message}</div>`;
+    }
+    
+    function showSuccess(message) {
+        const results = document.getElementById('results');
+        results.innerHTML = `<div class="alert alert-success">${message}</div>`;
+    }
+    
+    function displayData(data) {
+        const results = document.getElementById('results');
+        
+        if (Array.isArray(data) && data.length > 0) {
+            const table = createDataTable(data);
+            results.innerHTML += `
+                <div class="results">
+                    <h3>Parsed Data (${data.length} records)</h3>
+                    ${table}
+                </div>
+            `;
+        } else {
+            results.innerHTML += `
+                <div class="results">
+                    <h3>Parsed Data</h3>
+                    <div class="data-preview">
+                        <pre>${JSON.stringify(data, null, 2)}</pre>
+                    </div>
+                </div>
+            `;
+        }
+    }
+    
+    function createDataTable(data) {
+        if (!data || data.length === 0) return '<p>No data to display</p>';
+        
+        const keys = Object.keys(data[0]);
+        const maxRows = 100;
+        const displayData = data.slice(0, maxRows);
+        
+        let table = '<table class="data-table"><thead><tr>';
+        keys.forEach(key => {
+            table += `<th>${key}</th>`;
+        });
+        table += '</tr></thead><tbody>';
+        
+        displayData.forEach(row => {
+            table += '<tr>';
+            keys.forEach(key => {
+                table += `<td>${row[key] || ''}</td>`;
+            });
+            table += '</tr>';
+        });
+        
+        table += '</tbody></table>';
+        
+        if (data.length > maxRows) {
+            table += `<p><em>Showing first ${maxRows} of ${data.length} records</em></p>`;
+        }
+        
+        return table;
+    }
+</script>
